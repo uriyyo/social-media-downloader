@@ -71,7 +71,6 @@ async def _handle_images(
         },
     )
     response.raise_for_status()
-    verify(response.content)
 
     final_url: str = verify(response.headers.get("Hx-Redirect"))
 
