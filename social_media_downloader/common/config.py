@@ -1,6 +1,9 @@
-from asyncio import sleep, timeout
+from asyncio import sleep
 from dataclasses import dataclass
-from typing import AsyncIterator, Self
+from typing import AsyncIterator
+
+from async_timeout import timeout
+from typing_extensions import Self
 
 from .consts import DEFAULT_POOL, DEFAULT_TIMEOUT
 
