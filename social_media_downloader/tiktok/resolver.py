@@ -24,7 +24,7 @@ def tiktok_all_links(text: str) -> list[str]:
     return find_all_by_regex(TIKTOK_LINK_REGEX, text)
 
 
-async def tiktok_video_thumbnail_url(
+async def tiktok_resolve_thumbnail_link(
     client: AsyncClient,
     video_id: str,
 ) -> str:
@@ -118,7 +118,7 @@ async def _find_links(
     video = VideoMedia(url=f"https://tikcdn.io/ssstik/{video_id}")
 
     if add_thumbnail:
-        video.thumbnail_url = await tiktok_video_thumbnail_url(client, video_id)
+        video.thumbnail_url = await tiktok_resolve_thumbnail_link(client, video_id)
 
     return video if images_as_video else [video]
 
@@ -164,5 +164,5 @@ async def tiktok_resolve_links(
 __all__ = [
     "tiktok_all_links",
     "tiktok_resolve_links",
-    "tiktok_video_thumbnail_url",
+    "tiktok_resolve_thumbnail_link",
 ]
