@@ -24,17 +24,31 @@ def tiktok_all_links(text: str) -> list[str]:
     return find_all_by_regex(TIKTOK_LINK_REGEX, text)
 
 
-async def tiktok_resolve_thumbnail_link(
+async def _handle_video(
     client: AsyncClient,
-    video_id: str,
-) -> str:
-    response = await client.get(
-        "https://www.tiktok.com/oembed",
-        params={"url": f"https://www.tiktok.com/@tiktok/video/{video_id}"},
-    )
-    response.raise_for_status()
+    response: Response,
+    *,
+    add_thumbnail: bool = False,
+) -> VideoMedia:
+    root = BeautifulSoup(response.text, "html.parser")
+    url = verify(root.select_one("a.download_link")).attrs["href"]
+    thumbnail = None
 
-    return verify(response.json().get("thumbnail_url"))
+    if add_thumbnail:
+        *_, video_id = url.removesuffix("/").rsplit("/")
+
+        response = await client.get(
+            "https://www.tiktok.com/oembed",
+            params={"url": f"https://www.tiktok.com/@tiktok/video/{video_id}"},
+        )
+        response.raise_for_status()
+
+        thumbnail = verify(response.json().get("thumbnail_url"))
+
+    return VideoMedia(
+        url=url,
+        thumbnail_url=thumbnail,
+    )
 
 
 async def _handle_images(
@@ -75,11 +89,12 @@ async def _handle_images(
     return res
 
 
-async def _bad_path_handle_images(
+async def _find_links(
     client: AsyncClient,
     url: str,
     *,
-    images_as_video: bool = False,
+    images_as_video: bool,
+    add_thumbnail: bool = False,
 ) -> VideoMedia | list[AnyMedia]:
     response = await client.get("https://ssstik.io/en")
     response.raise_for_status()
@@ -98,29 +113,11 @@ async def _bad_path_handle_images(
     response.raise_for_status()
     verify(response.content)
 
-    return await _handle_images(client, response, images_as_video=images_as_video)
+    if 'id="slides_generate"' in response.text:
+        return await _handle_images(client, response, images_as_video=images_as_video)
 
-
-async def _find_links(
-    client: AsyncClient,
-    url: str,
-    *,
-    images_as_video: bool,
-    add_thumbnail: bool = False,
-) -> VideoMedia | list[AnyMedia]:
-    response = await client.get(url)
-    response.raise_for_status()
-
-    if "photo" in response.url.path:
-        return await _bad_path_handle_images(client, url, images_as_video=images_as_video)
-
-    *_, video_id = response.url.path.strip("/").split("/")
-    video = VideoMedia(url=f"https://tikcdn.io/ssstik/{video_id}")
-
-    if add_thumbnail:
-        video.thumbnail_url = await tiktok_resolve_thumbnail_link(client, video_id)
-
-    return video if images_as_video else [video]
+    media = await _handle_video(client, response, add_thumbnail=add_thumbnail)
+    return media if images_as_video else [media]
 
 
 @overload
@@ -164,5 +161,4 @@ async def tiktok_resolve_links(
 __all__ = [
     "tiktok_all_links",
     "tiktok_resolve_links",
-    "tiktok_resolve_thumbnail_link",
 ]
