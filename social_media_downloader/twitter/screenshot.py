@@ -47,11 +47,12 @@ async def get_thread_tweets(
     url: str,
     *,
     cookies: dict[str, str],
+    scrapper: Scraper | None = None,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     tweet_id = url.removesuffix("/").split("/")[-1]
 
-    _scrapper = Scraper(
+    _scrapper = scrapper or Scraper(
         pbar=False,
         save=False,
         debug=False,
@@ -155,13 +156,14 @@ async def twitter_thread_screenshot(
     *,
     ct0: str,
     auth_token: str,
+    scrapper: Scraper | None = None,
 ) -> list[bytes]:
     cookies = {
         "ct0": ct0,
         "auth_token": auth_token,
     }
 
-    tweets = await get_thread_tweets(url, cookies=cookies)
+    tweets = await get_thread_tweets(url, scrapper=scrapper, cookies=cookies)
 
     async with browser_ctx(cookies) as ctx:
         chunks = [[*chunk] for chunk in divide(math.ceil(len(tweets) / 6), tweets)]
