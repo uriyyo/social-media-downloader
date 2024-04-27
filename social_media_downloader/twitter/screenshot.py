@@ -1,6 +1,6 @@
 import math
 from asyncio import gather
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
 from typing import Any, AsyncIterator
 
@@ -22,7 +22,7 @@ async def browser_ctx(
         browser = await p.chromium.launch(headless=headless, channel="chrome")
 
         device = deepcopy(p.devices["Pixel 7"])
-        device["viewport"] = {"width": 500, "height": 1_200}
+        device["viewport"] = {"width": 700, "height": 1_200}
 
         ctx = await browser.new_context(
             color_scheme="dark",
@@ -122,7 +122,7 @@ _TWEET_PREPARE_SCRIPT = """
 _TWEET_REMOVE_BAR_SCRIPT = """
     const removeAll = (selector) => document.querySelectorAll(selector).forEach(e => e.remove());
 
-    removeAll('[data-testid="cellInnerDiv"]:nth-last-child(1) [data-testid="Tweet-User-Avatar"] + div')
+    removeAll('[data-testid="cellInnerDiv"]:nth-last-child(1) [data-testid="Tweet-User-Avatar"] + div:not(:has(*))')
 """
 
 
@@ -138,7 +138,8 @@ async def _make_screenshot(
             await route.fulfill(json=entries_to_response(entries))
             return
 
-        await route.continue_()
+        with suppress(Exception):
+            await route.continue_()
 
     page = await ctx.new_page()
 
