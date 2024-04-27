@@ -115,8 +115,9 @@ _TWEET_PREPARE_SCRIPT = """
     removeAll('[role="group"] > div:nth-last-child(-n + 2)')
     removeAll('[data-testid="caret"]')
     removeAll('.r-12vffkv nav')
+    removeAll('#layers')
 
-    document.querySelector('#layers + div')?.scrollIntoView()
+    document.querySelector('h2 ~ [data-at-shortcutkeys]')?.scrollIntoView()
 """
 
 _TWEET_REMOVE_BAR_SCRIPT = """
