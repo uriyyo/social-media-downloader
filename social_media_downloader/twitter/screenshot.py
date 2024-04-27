@@ -59,7 +59,11 @@ async def get_thread_tweets(
         cookies=cookies,
     )
 
-    [responses] = await _scrapper._process(Operation.TweetDetail, [{"focalTweetId": tweet_id}], limit=limit)
+    kwargs = {}
+    if limit is not None:
+        kwargs["limit"] = limit
+
+    [responses] = await _scrapper._process(Operation.TweetDetail, [{"focalTweetId": tweet_id}], **kwargs)
 
     entries = []
     for response in responses:
