@@ -1,5 +1,5 @@
 import math
-from asyncio import gather
+from asyncio import gather, sleep
 from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
 from typing import Any, AsyncIterator
@@ -146,6 +146,9 @@ async def _make_screenshot(
 
     await page.route("*/**", handle)
     await page.goto(f"https://twitter.com/_/status/{DUMMY_TWEE_ID}", wait_until="networkidle")
+
+    # TODO: figure out how to wait for the page to loaded
+    await sleep(1)
 
     await page.evaluate(_TWEET_PREPARE_SCRIPT)
 
