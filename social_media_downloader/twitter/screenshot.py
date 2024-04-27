@@ -12,9 +12,13 @@ from social_media_downloader.twitter.consts import DUMMY_LAST_TWEET, DUMMY_TWEE_
 
 
 @asynccontextmanager
-async def browser_ctx(cookies: dict[str, str]) -> AsyncIterator[BrowserContext]:
+async def browser_ctx(
+    *,
+    cookies: dict[str, str],
+    headless: bool = True,
+) -> AsyncIterator[BrowserContext]:
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False, channel="chrome")
+        browser = await p.chromium.launch(headless=headless, channel="chrome")
 
         ctx = await browser.new_context(
             color_scheme="dark",
@@ -162,6 +166,7 @@ async def twitter_thread_screenshot(
     auth_token: str,
     scrapper: Scraper | None = None,
     limit: int | None = None,
+    headless: bool = True,
 ) -> list[bytes]:
     cookies = {
         "ct0": ct0,
@@ -170,7 +175,7 @@ async def twitter_thread_screenshot(
 
     tweets = await get_thread_tweets(url, scrapper=scrapper, cookies=cookies, limit=limit)
 
-    async with browser_ctx(cookies) as ctx:
+    async with browser_ctx(cookies=cookies, headless=headless) as ctx:
         chunks = [[*chunk] for chunk in divide(math.ceil(len(tweets) / 6), tweets)]
 
         screenshots = await gather(*[_make_screenshot(ctx, chunk, is_last=chunk is chunks[-1]) for chunk in chunks])
