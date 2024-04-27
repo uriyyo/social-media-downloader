@@ -22,7 +22,7 @@ async def browser_ctx(
         browser = await p.chromium.launch(headless=headless, channel="chrome")
 
         device = deepcopy(p.devices["Pixel 7"])
-        device["viewport"] = {"width": 700, "height": 1_200}
+        device["viewport"]["height"] = 1_200
 
         ctx = await browser.new_context(
             color_scheme="dark",
@@ -116,7 +116,7 @@ _TWEET_PREPARE_SCRIPT = """
     removeAll('[data-testid="caret"]')
     removeAll('.r-12vffkv nav')
 
-    document.querySelector('#layers + div').scrollIntoView()
+    document.querySelector('#layers + div')?.scrollIntoView()
 """
 
 _TWEET_REMOVE_BAR_SCRIPT = """
