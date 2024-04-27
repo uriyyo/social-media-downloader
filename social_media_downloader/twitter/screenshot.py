@@ -1,6 +1,7 @@
 import math
 from asyncio import gather
 from contextlib import asynccontextmanager
+from copy import deepcopy
 from typing import Any, AsyncIterator
 
 from more_itertools import divide
@@ -20,11 +21,14 @@ async def browser_ctx(
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=headless, channel="chrome")
 
+        device = deepcopy(p.devices["Pixel 7"])
+        device["viewport"] = {"width": 500, "height": 1_200}
+
         ctx = await browser.new_context(
             color_scheme="dark",
+            **device,
             # **p.devices["IPhone 13"],
             # **p.devices["iPhone 14 Pro"],
-            **p.devices["Pixel 7"],
             # viewport={"width": 839, "height": 412},
             # device_scale_factor=3,
             # is_mobile=True,
