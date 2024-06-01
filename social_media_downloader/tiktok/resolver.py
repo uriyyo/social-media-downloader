@@ -15,7 +15,7 @@ AnyMedia: TypeAlias = VideoMedia | ImageMedia | AudioMedia
 TOKEN_REGEX = re.compile(r"s_tt\s*=\s*'(.*?)'")
 
 TIKTOK_LINK_REGEX = re.compile(
-    r"https://vm\.tiktok\.com/\w+/?",
+    r"https://(vm|www)\.tiktok\.com/[@\w+/]+/?",
     re.DOTALL | re.IGNORECASE,
 )
 
