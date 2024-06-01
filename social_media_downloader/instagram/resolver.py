@@ -6,7 +6,7 @@ from ..common import ImageMedia, ResolverConfig, VideoMedia, find_all_by_regex
 from ..generic import generic_resolve_links
 
 INSTAGRAM_LINK_REGEX = re.compile(
-    r"https://(www\.)?instagram\.com/(p|reel)/([\w-]+)",
+    r"https://(www\.)?instagram\.com/(p|reel|reels)/([\w-]+)",
     re.DOTALL | re.IGNORECASE,
 )
 

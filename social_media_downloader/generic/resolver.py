@@ -40,6 +40,7 @@ async def generic_resolve_links(
         response = await client.post(
             "https://app.publer.io/hooks/media",
             json={"url": url, "iphone": False},
+            headers={"Referer": "https://publer.io/"},
         )
         response.raise_for_status()
 
