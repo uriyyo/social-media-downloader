@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from typing import Literal, TypeAlias, overload
@@ -101,7 +102,11 @@ async def _find_links(
     images_as_video: bool,
     resolve_image_video: bool,
     add_thumbnail: bool = False,
+    retries: int = 5,
 ) -> VideoMedia | list[AnyMedia]:
+    if retries < 0:
+        raise ValueError("Failed to resolve media")
+
     response = await client.get("https://ssstik.io/")
     response.raise_for_status()
 
@@ -117,6 +122,20 @@ async def _find_links(
     )
 
     response.raise_for_status()
+
+    if not response.content:
+        logger.warning("Rate limit exceeded, retrying in 5 seconds")
+        await asyncio.sleep(5)
+
+        return await _find_links(
+            client,
+            url,
+            images_as_video=images_as_video,
+            resolve_image_video=resolve_image_video,
+            add_thumbnail=add_thumbnail,
+            retries=retries - 1,
+        )
+
     verify(response.content)
 
     if 'id="slides_generate"' in response.text:
