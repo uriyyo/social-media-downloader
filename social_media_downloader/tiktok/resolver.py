@@ -102,7 +102,7 @@ async def _find_links(
     resolve_image_video: bool,
     add_thumbnail: bool = False,
 ) -> VideoMedia | list[AnyMedia]:
-    response = await client.get("https://ssstik.io/en")
+    response = await client.get("https://ssstik.io/")
     response.raise_for_status()
 
     token = verify(TOKEN_REGEX.search(response.text)).group(1)
