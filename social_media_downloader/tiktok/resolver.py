@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import re
 from typing import Literal, TypeAlias, overload
@@ -8,6 +7,7 @@ from httpx import AsyncClient, Response
 
 from ..common import AudioMedia, ImageMedia, VideoMedia, verify
 from ..common.utils import find_all_by_regex, httpx_client
+from ..generic.resolver import generic_resolve_links
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ async def _handle_images(
     return res
 
 
-async def _find_links(
+async def _find_links_old(
     client: AsyncClient,
     url: str,
     *,
@@ -122,20 +122,6 @@ async def _find_links(
     )
 
     response.raise_for_status()
-
-    if not response.content:
-        logger.warning("Rate limit exceeded, retrying in 5 seconds")
-        await asyncio.sleep(5)
-
-        return await _find_links(
-            client,
-            url,
-            images_as_video=images_as_video,
-            resolve_image_video=resolve_image_video,
-            add_thumbnail=add_thumbnail,
-            retries=retries - 1,
-        )
-
     verify(response.content)
 
     if 'id="slides_generate"' in response.text:
@@ -148,6 +134,31 @@ async def _find_links(
 
     media = await _handle_video(client, response, add_thumbnail=add_thumbnail)
     return media if images_as_video else [media]
+
+
+async def _find_links(
+    client: AsyncClient,
+    url: str,
+    *,
+    images_as_video: bool = False,
+    add_thumbnail: bool = False,
+    resolve_image_video: bool = False,
+) -> VideoMedia | list[AnyMedia]:
+    medias = await generic_resolve_links(
+        url,
+        client=client,
+    )
+
+    videos = [m for m in medias if isinstance(m, VideoMedia)]
+    non_videos = [m for m in medias if not isinstance(m, VideoMedia)]
+
+    verify(len(videos) == 1, msg="Expected exactly one video media")
+    (video,) = videos
+
+    if images_as_video:
+        return video
+
+    return [video, *non_videos]
 
 
 @overload

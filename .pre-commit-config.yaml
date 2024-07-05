@@ -5,7 +5,6 @@ repos:
         language: python
         name: ruff-format
         pass_filenames: false
-        language_version: python3.8
         entry: poetry run ruff format social_media_downloader
 
   - repo: local
@@ -14,7 +13,6 @@ repos:
         language: python
         name: ruff
         pass_filenames: false
-        language_version: python3.8
         entry: poetry run ruff check --fix --exit-non-zero-on-fix --show-fixes social_media_downloader
 
   - repo: local
