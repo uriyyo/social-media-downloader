@@ -199,7 +199,7 @@ async def _find_links(
     videos = [m for m in medias if isinstance(m, VideoMedia)]
     non_videos = [m for m in medias if not isinstance(m, VideoMedia)]
 
-    verify(len(videos) > 1, msg="Expected more than 1 video media")
+    verify(len(videos) >= 1, msg="Expected more than zero video media")
     (video, *_) = videos
 
     if add_thumbnail:
