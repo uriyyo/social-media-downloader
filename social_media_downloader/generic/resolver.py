@@ -39,8 +39,14 @@ async def generic_resolve_links(
     async with httpx_client(client) as client:
         response = await client.post(
             "https://app.publer.io/hooks/media",
-            json={"url": url, "iphone": False},
-            headers={"Referer": "https://publer.io/"},
+            json={"url": url, "iphone": True},
+            headers={
+                "Referer": "https://publer.io/",
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+                ),
+            },
         )
         response.raise_for_status()
 
