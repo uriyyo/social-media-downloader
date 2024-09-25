@@ -78,6 +78,7 @@ async def _handle_images(
     if not resolve_image_video:
         return base
 
+    await asyncio.sleep(1)
     response = await client.post(
         "https://r.ssstik.top/index.sh",
         data={
@@ -88,7 +89,7 @@ async def _handle_images(
 
     final_url: str = verify(response.headers.get("Hx-Redirect"))
 
-    assert FINAL_URL_REGEX.match(final_url), "Invalid final URL"
+    assert FINAL_URL_REGEX.match(final_url), f"Invalid final URL {final_url}"
 
     res = VideoMedia(
         url=final_url,
@@ -108,11 +109,7 @@ async def _find_links_old(
     images_as_video: bool,
     resolve_image_video: bool,
     add_thumbnail: bool = False,
-    retries: int = 5,
 ) -> VideoMedia | list[AnyMedia]:
-    if retries < 0:
-        raise ValueError("Failed to resolve media")
-
     response = await client.get("https://ssstik.io/")
     response.raise_for_status()
 
@@ -222,13 +219,12 @@ async def _find_links_facade(
     add_thumbnail: bool = False,
 ) -> VideoMedia | list[AnyMedia]:
     try:
-        r = await _find_links_old(
+        r = await _retry_call(_find_links_old, retries=3, interval=1)(
             client,
             url,
             resolve_image_video=True,
             images_as_video=images_as_video,
             add_thumbnail=add_thumbnail,
-            retries=3,
         )
 
         assert r, "Failed to resolve media"
