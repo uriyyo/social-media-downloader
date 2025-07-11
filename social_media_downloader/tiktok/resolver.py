@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import re
 from functools import wraps
@@ -241,6 +242,69 @@ async def _find_links_facade(
     )
 
 
+async def _find_links_fast(
+    client: AsyncClient,
+    url: str,
+    *,
+    images_as_video: bool = True,
+    add_thumbnail: bool = False,
+) -> VideoMedia | list[AnyMedia]:
+    headers = {
+        "Referer": "https://www.tiktok.com/",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+        ),
+    }
+
+    response = await client.get(
+        url,
+        headers=headers,
+    )
+    response.raise_for_status()
+
+    root = BeautifulSoup(response.text, "html.parser")
+    datas = [
+        json.loads(script.string)
+        for script in root.find_all("script", type="application/json")
+        if "__DEFAULT_SCOPE__" in script.string
+    ]
+
+    match datas:
+        case [
+            {
+                "__DEFAULT_SCOPE__": {
+                    "webapp.video-detail": {
+                        "itemInfo": {
+                            "itemStruct": {
+                                "video": {
+                                    "playAddr": play_addr,
+                                    "cover": cover,
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        ]:
+            return VideoMedia(
+                url=play_addr,
+                thumbnail_url=cover if add_thumbnail else None,
+                headers=headers
+                | {
+                    "Range": "bytes=0-",
+                    "Cookie": "; ".join(f"{k}={v}" for k, v in {**client.cookies}.items()),
+                },
+            )
+
+    return await _find_links_facade(
+        client,
+        url,
+        images_as_video=images_as_video,
+        add_thumbnail=add_thumbnail,
+    )
+
+
 @overload
 async def tiktok_resolve_links(
     url: str,
@@ -271,7 +335,7 @@ async def tiktok_resolve_links(
     client: AsyncClient | None = None,
 ) -> VideoMedia | list[AnyMedia]:
     async with httpx_client(client) as client:
-        return await _find_links_facade(
+        return await _find_links_fast(
             client,
             url,
             images_as_video=images_as_video,

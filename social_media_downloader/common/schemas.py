@@ -14,6 +14,7 @@ class Media(BaseModel):
 
 class RefMedia(Media):
     url: StrHttpUrl
+    headers: dict[str, str] | None = None
 
 
 class VideoMedia(RefMedia):
