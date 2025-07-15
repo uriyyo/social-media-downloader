@@ -813,15 +813,15 @@ typing-extensions = "*"
 dev = ["black", "build", "flake8", "flake8-black", "isort", "jupyter-console", "mkdocs", "mkdocs-include-markdown-plugin", "mkdocstrings[python]", "pytest", "pytest-asyncio ; python_version >= \"3.4\"", "pytest-trio ; python_version >= \"3.7\"", "sphinx", "toml", "tox", "trio", "trio ; python_version > \"3.6\"", "trio-typing ; python_version > \"3.6\"", "twine", "twisted", "validate-pyproject[all]"]
 
 [[package]]
-name = "pytube"
-version = "15.0.0"
-description = "Python 3 library for downloading YouTube Videos."
+name = "pytubefix"
+version = "9.3.0"
+description = "Python3 library for downloading YouTube Videos."
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "pytube-15.0.0-py3-none-any.whl", hash = "sha256:07b9904749e213485780d7eb606e5e5b8e4341aa4dccf699160876da00e12d78"},
-    {file = "pytube-15.0.0.tar.gz", hash = "sha256:076052efe76f390dfa24b1194ff821d4e86c17d41cb5562f3a276a8bcbfc9d1d"},
+    {file = "pytubefix-9.3.0-py3-none-any.whl", hash = "sha256:97aeb82b4467e3bbf6703aafe618072559cc880dc66c94001b85e5718cf2cf17"},
+    {file = "pytubefix-9.3.0.tar.gz", hash = "sha256:bcf7eeb4810f8710d31d6bce071475bd83fbd7ad6c978e32dda9a4802d0b0feb"},
 ]
 
 [[package]]
@@ -1200,4 +1200,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10.10"
-content-hash = "c23d511028635a0a8a34c240f85a99b56d70b512a05304fa6e3a8ccf3f485717"
+content-hash = "dd827f2d4efb0e6cc23b6c67d06bc947823f1f211a2fa1edc48fcf624b459b98"

@@ -2,8 +2,8 @@ import re
 from asyncio import to_thread
 from contextlib import suppress
 
-from pytube import YouTube
-from pytube.exceptions import AgeRestrictedError
+from pytubefix  import YouTube
+from pytubefix.exceptions import AgeRestrictedError
 
 from ..common import VideoMedia, find_all_by_regex, verify
 
