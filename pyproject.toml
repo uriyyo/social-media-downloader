@@ -22,7 +22,7 @@ playwright = ">=1.43.0"
 pillow = ">=10.3.0"
 twitter-api-client = ">=0.10.22"
 more-itertools = ">=10.2.0"
-pytubefix = "^9.3.0"
+pytubefix = "==9.2.2"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.3.3"

@@ -814,14 +814,14 @@ dev = ["black", "build", "flake8", "flake8-black", "isort", "jupyter-console", "
 
 [[package]]
 name = "pytubefix"
-version = "9.3.0"
+version = "9.2.2"
 description = "Python3 library for downloading YouTube Videos."
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "pytubefix-9.3.0-py3-none-any.whl", hash = "sha256:97aeb82b4467e3bbf6703aafe618072559cc880dc66c94001b85e5718cf2cf17"},
-    {file = "pytubefix-9.3.0.tar.gz", hash = "sha256:bcf7eeb4810f8710d31d6bce071475bd83fbd7ad6c978e32dda9a4802d0b0feb"},
+    {file = "pytubefix-9.2.2-py3-none-any.whl", hash = "sha256:4a2efd8460601a99ffc0cbbd00f5043d94e84358d0c46c13d5cb6b0e24241ac1"},
+    {file = "pytubefix-9.2.2.tar.gz", hash = "sha256:eabb6096ab89ce366438cb979deac087e1eb7dd55e27f519b8bf113a7857d8fe"},
 ]
 
 [[package]]
@@ -1200,4 +1200,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10.10"
-content-hash = "dd827f2d4efb0e6cc23b6c67d06bc947823f1f211a2fa1edc48fcf624b459b98"
+content-hash = "8fcfc7c9eeba778b462dab151f377e3a996770a03a476e2d3edeecec741051bb"
