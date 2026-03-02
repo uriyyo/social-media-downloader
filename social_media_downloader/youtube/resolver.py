@@ -11,31 +11,27 @@ YOUTUBE_LINK_REGEX = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
-_VIDSSAVE_API_URL = "https://api.vidssave.com/api/contentsite_api/media/parse"
-_VIDSSAVE_AUTH = "20250901majwlqo"
-_VIDSSAVE_DOMAIN = "api-ak.vidssave.com"
+_GETLATE_API_URL = "https://getlate.dev/api/tools/youtube-video-downloader"
+
+_QUALITY_ORDER = ["1080p", "720p", "480p", "360p", "240p", "144p"]
 
 
 def youtube_all_links(text: str) -> list[str]:
     return find_all_by_regex(YOUTUBE_LINK_REGEX, text)
 
 
-def _pick_best_video(data: dict[str, Any], max_mb: float | None = None) -> VideoMedia | None:
-    resources = data.get("resources", [])
-    thumbnail = data.get("thumbnail")
+def _pick_best_format(formats: list[dict[str, Any]], max_mb: float | None = None) -> dict[str, Any] | None:
+    with_audio = [f for f in formats if f.get("hasAudio") and f.get("hasVideo")]
+    video_only = [f for f in formats if f.get("hasVideo") and not f.get("hasAudio")]
 
-    videos = [r for r in resources if r.get("type") == "video" and r.get("format") == "MP4"]
-
-    quality_order = ["1080P", "720P", "480P", "360P", "240P", "144P"]
-    videos.sort(key=lambda v: quality_order.index(v["quality"]) if v["quality"] in quality_order else 999)
-
-    for video in videos:
-        if max_mb and video.get("size", 0) / (1024 * 1024) > max_mb:
-            continue
-
-        download_url = video.get("download_url")
-        if download_url:
-            return VideoMedia(url=download_url, thumbnail_url=thumbnail)
+    for pool in [with_audio, video_only]:
+        pool.sort(
+            key=lambda f: _QUALITY_ORDER.index(f["label"]) if f["label"] in _QUALITY_ORDER else 999,
+        )
+        for fmt in pool:
+            if max_mb and fmt.get("fileSize") and fmt["fileSize"] / (1024 * 1024) > max_mb:
+                continue
+            return fmt
 
     return None
 
@@ -47,24 +43,32 @@ async def youtube_resolve_links(
     client: AsyncClient | None = None,
 ) -> VideoMedia:
     async with httpx_client(client) as client:
-        response = await client.post(
-            _VIDSSAVE_API_URL,
-            data={
-                "auth": _VIDSSAVE_AUTH,
-                "domain": _VIDSSAVE_DOMAIN,
-                "origin": "source",
-                "link": url,
-            },
-            headers={
-                "referer": "https://vidssave.com/",
-            },
+        # Step 1: Get available formats
+        resp = await client.get(
+            _GETLATE_API_URL,
+            params={"action": "formats", "url": url},
         )
-        response.raise_for_status()
+        resp.raise_for_status()
+        data = resp.json()
 
-        result = response.json()
-        media = _pick_best_video(result.get("data", {}), max_mb)
+        if not data.get("success"):
+            msg = "Failed to get video formats"
+            raise ValueError(msg)
 
-    return verify(media)
+        formats = verify(data.get("formats"), msg="No formats available")
+        best = verify(_pick_best_format(formats, max_mb), msg="No suitable format found")
+
+        # Step 2: Get download URL (302 redirect)
+        download_resp = await client.get(
+            _GETLATE_API_URL,
+            params={"action": "download", "url": url, "formatId": best["id"]},
+            follow_redirects=False,
+        )
+
+        download_url = verify(download_resp.headers.get("location"), msg="No download URL in response")
+        thumbnail = data.get("cover")
+
+    return VideoMedia(url=download_url, thumbnail_url=thumbnail)
 
 
 __all__ = [
