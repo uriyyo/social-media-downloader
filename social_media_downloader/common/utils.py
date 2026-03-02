@@ -35,8 +35,8 @@ def find_all_by_regex(pattern: re.Pattern[str], text: str) -> list[str]:
 
 
 __all__ = [
-    "verify",
     "VerifyError",
-    "httpx_client",
     "find_all_by_regex",
+    "httpx_client",
+    "verify",
 ]

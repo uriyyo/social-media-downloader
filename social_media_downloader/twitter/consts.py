@@ -124,6 +124,6 @@ DUMMY_LAST_TWEET = {
 DUMMY_TWEE_ID = DUMMY_LAST_TWEET["entryId"].split("-")[-1]  # type: ignore[attr-defined]
 
 __all__ = [
-    "DUMMY_TWEE_ID",
     "DUMMY_LAST_TWEET",
+    "DUMMY_TWEE_ID",
 ]

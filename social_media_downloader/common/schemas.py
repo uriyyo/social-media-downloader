@@ -34,10 +34,10 @@ class RawMedia(Media):
 
 
 __all__ = [
-    "Media",
-    "RefMedia",
     "AudioMedia",
-    "VideoMedia",
     "ImageMedia",
+    "Media",
     "RawMedia",
+    "RefMedia",
+    "VideoMedia",
 ]

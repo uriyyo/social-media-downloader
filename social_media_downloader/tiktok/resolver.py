@@ -356,7 +356,7 @@ async def tiktok_is_video(
 
 
 __all__ = [
-    "tiktok_is_video",
     "tiktok_all_links",
+    "tiktok_is_video",
     "tiktok_resolve_links",
 ]
