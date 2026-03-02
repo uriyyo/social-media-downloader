@@ -58,14 +58,16 @@ async def youtube_resolve_links(
         formats = verify(data.get("formats"), msg="No formats available")
         best = verify(_pick_best_format(formats, max_mb), msg="No suitable format found")
 
-        # Step 2: Get download URL (302 redirect)
-        download_resp = await client.get(
-            _GETLATE_API_URL,
-            params={"action": "download", "url": url, "formatId": best["id"]},
-            follow_redirects=False,
+        # Step 2: Build download URL (returns 302 to googlevideo)
+        # Return the proxy URL directly - googlevideo URLs are IP-locked,
+        # so the consumer must follow the redirect chain from their own IP.
+        download_url = str(
+            client.build_request(
+                "GET",
+                _GETLATE_API_URL,
+                params={"action": "download", "url": url, "formatId": best["id"]},
+            ).url,
         )
-
-        download_url = verify(download_resp.headers.get("location"), msg="No download URL in response")
         thumbnail = data.get("cover")
 
     return VideoMedia(url=download_url, thumbnail_url=thumbnail)
