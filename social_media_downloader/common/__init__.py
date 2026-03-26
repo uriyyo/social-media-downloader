@@ -1,4 +1,5 @@
 from .config import ResolverConfig
+from .ffmpeg import images_to_video
 from .schemas import (
     AudioMedia,
     ImageMedia,
@@ -21,6 +22,7 @@ __all__ = [
     "RefMedia",
     "ResolverConfig",
     "VideoMedia",
+    "images_to_video",
     "find_all_by_regex",
     "httpx_client",
     "verify",

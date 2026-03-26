@@ -31,6 +31,7 @@ class AudioMedia(RefMedia):
 
 class RawMedia(Media):
     content: bytes
+    content_type: str
 
 
 __all__ = [

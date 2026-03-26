@@ -3,18 +3,18 @@ import json
 import logging
 import re
 from functools import wraps
-from typing import Awaitable, Callable, Literal, ParamSpec, TypeAlias, TypeVar, overload
+from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeAlias, TypeVar, overload
 
 from bs4 import BeautifulSoup
 from httpx import AsyncClient, Response
 
-from ..common import AudioMedia, ImageMedia, VideoMedia, verify
+from ..common import AudioMedia, ImageMedia, RawMedia, VideoMedia, images_to_video, verify
 from ..common.utils import find_all_by_regex, httpx_client
 from ..generic.resolver import generic_resolve_links
 
 logger = logging.getLogger(__name__)
 
-AnyMedia: TypeAlias = VideoMedia | ImageMedia | AudioMedia
+AnyMedia: TypeAlias = VideoMedia | ImageMedia | AudioMedia | RawMedia
 
 TOKEN_REGEX = re.compile(r"s_tt\s*=\s*'(.*?)'")
 
@@ -137,7 +137,9 @@ async def _find_links_old(
         )
 
     media = await _handle_video(client, response, add_thumbnail=add_thumbnail)
-    return media if images_as_video else [media]
+    if images_as_video:
+        return media
+    return [media]
 
 
 async def _resolve_thumbnail(
@@ -155,7 +157,7 @@ async def _resolve_thumbnail(
     )
     response.raise_for_status()
 
-    return verify(response.json().get("thumbnail_url"))
+    return str(verify(response.json().get("thumbnail_url")))
 
 
 P = ParamSpec("P")
@@ -242,10 +244,29 @@ async def _find_links_facade(
     )
 
 
-async def _resolve_video_id(client: AsyncClient, url: str) -> str:
+async def _resolve_item_id(client: AsyncClient, url: str) -> str:
     response = await client.head(url, follow_redirects=True)
-    match = re.search(r"/video/(\d+)", str(response.url))
-    return verify(match, msg=f"Could not extract video ID from {response.url}").group(1)
+    match = re.search(r"/(?:video|photo)/(\d+)", str(response.url))
+    return verify(match, msg=f"Could not extract item ID from {response.url}").group(1)
+
+
+def _extract_video_data(text: str) -> dict[str, Any] | None:
+    match = re.search(r'"videoData"\s*:\s*(\{)', text)
+    if not match:
+        return None
+
+    start = match.start(1)
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                result: dict[str, Any] = json.loads(text[start : i + 1])
+                return result
+
+    return None
 
 
 async def _find_links_fast(
@@ -254,7 +275,7 @@ async def _find_links_fast(
     *,
     images_as_video: bool = True,
     add_thumbnail: bool = False,
-) -> VideoMedia | list[AnyMedia]:
+) -> VideoMedia | RawMedia | list[AnyMedia]:
     headers = {
         "Referer": "https://www.tiktok.com/",
         "User-Agent": (
@@ -263,43 +284,46 @@ async def _find_links_fast(
         ),
     }
 
-    video_id = await _resolve_video_id(client, url)
+    item_id = await _resolve_item_id(client, url)
 
     response = await client.get(
-        f"https://www.tiktok.com/embed/{video_id}",
+        f"https://www.tiktok.com/embed/{item_id}",
         headers=headers,
     )
     response.raise_for_status()
 
-    text = response.text
-    match = re.search(r'"videoData"\s*:\s*(\{)', text)
-    if match:
-        start = match.start(1)
-        depth = 0
-        for i in range(start, len(text)):
-            if text[i] == "{":
-                depth += 1
-            elif text[i] == "}":
-                depth -= 1
-                if depth == 0:
-                    video_data = json.loads(text[start : i + 1])
-                    break
-        else:
-            video_data = None
+    video_data = _extract_video_data(response.text)
+    if video_data:
+        item = video_data.get("itemInfos", {})
+        video = item.get("video", {})
+        video_urls = video.get("urls", [])
+        covers = item.get("covers", [])
+        cover = covers[0] if covers and add_thumbnail else None
 
-        if video_data:
-            item = video_data.get("itemInfos", {})
-            video = item.get("video", {})
-            urls = video.get("urls", [])
-            covers = item.get("covers", [])
+        if video_urls:
+            return VideoMedia(
+                url=video_urls[0],
+                thumbnail_url=cover,
+                headers=headers,
+            )
 
-            if urls:
-                cover = covers[0] if covers else None
-                return VideoMedia(
-                    url=urls[0],
-                    thumbnail_url=cover if add_thumbnail else None,
-                    headers=headers,
-                )
+        image_post = video_data.get("imagePostInfo", {})
+        display_images = image_post.get("displayImages", [])
+        music = video_data.get("musicInfos", {})
+        music_urls = music.get("playUrl", [])
+
+        if display_images:
+            image_medias = [ImageMedia(url=img["urlList"][0]) for img in display_images if img.get("urlList")]
+            audio = AudioMedia(url=music_urls[0]) if music_urls else None
+
+            if images_as_video and image_medias and audio:
+                video_bytes = await images_to_video(image_medias, audio, client=client)
+                return RawMedia(content=video_bytes, content_type="video/mp4")
+
+            result: list[AnyMedia] = [*image_medias]
+            if audio:
+                result.append(audio)
+            return result
 
     return await _find_links_facade(
         client,
@@ -316,7 +340,7 @@ async def tiktok_resolve_links(
     images_as_video: Literal[True] = True,
     add_thumbnail: bool = False,
     client: AsyncClient | None = None,
-) -> VideoMedia:
+) -> VideoMedia | RawMedia:
     pass
 
 
@@ -337,7 +361,7 @@ async def tiktok_resolve_links(
     images_as_video: bool = True,
     add_thumbnail: bool = False,
     client: AsyncClient | None = None,
-) -> VideoMedia | list[AnyMedia]:
+) -> VideoMedia | RawMedia | list[AnyMedia]:
     async with httpx_client(client) as client:
         return await _find_links_fast(
             client,
