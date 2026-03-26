@@ -242,6 +242,12 @@ async def _find_links_facade(
     )
 
 
+async def _resolve_video_id(client: AsyncClient, url: str) -> str:
+    response = await client.head(url, follow_redirects=True)
+    match = re.search(r"/video/(\d+)", str(response.url))
+    return verify(match, msg=f"Could not extract video ID from {response.url}").group(1)
+
+
 async def _find_links_fast(
     client: AsyncClient,
     url: str,
@@ -257,45 +263,43 @@ async def _find_links_fast(
         ),
     }
 
+    video_id = await _resolve_video_id(client, url)
+
     response = await client.get(
-        url,
+        f"https://www.tiktok.com/embed/{video_id}",
         headers=headers,
     )
     response.raise_for_status()
 
-    root = BeautifulSoup(response.text, "html.parser")
-    datas = [
-        json.loads(script.string)
-        for script in root.find_all("script", type="application/json")
-        if "__DEFAULT_SCOPE__" in script.string
-    ]
+    text = response.text
+    match = re.search(r'"videoData"\s*:\s*(\{)', text)
+    if match:
+        start = match.start(1)
+        depth = 0
+        for i in range(start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    video_data = json.loads(text[start : i + 1])
+                    break
+        else:
+            video_data = None
 
-    match datas:
-        case [
-            {
-                "__DEFAULT_SCOPE__": {
-                    "webapp.video-detail": {
-                        "itemInfo": {
-                            "itemStruct": {
-                                "video": {
-                                    "playAddr": play_addr,
-                                    "cover": cover,
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        ]:
-            return VideoMedia(
-                url=play_addr,
-                thumbnail_url=cover if add_thumbnail else None,
-                headers=headers
-                | {
-                    "Range": "bytes=0-",
-                    "Cookie": "; ".join(f"{k}={v}" for k, v in {**client.cookies}.items()),
-                },
-            )
+        if video_data:
+            item = video_data.get("itemInfos", {})
+            video = item.get("video", {})
+            urls = video.get("urls", [])
+            covers = item.get("covers", [])
+
+            if urls:
+                cover = covers[0] if covers else None
+                return VideoMedia(
+                    url=urls[0],
+                    thumbnail_url=cover if add_thumbnail else None,
+                    headers=headers,
+                )
 
     return await _find_links_facade(
         client,
