@@ -25,6 +25,16 @@ TIKTOK_LINK_REGEX = re.compile(
 
 FINAL_URL_REGEX = re.compile(r"^https://r\d+\.ssstik\.top/.*")
 
+UNIVERSAL_DATA_REGEX = re.compile(
+    r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.+?)</script>',
+    re.DOTALL,
+)
+
+_MOBILE_USER_AGENT = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+)
+
 
 def tiktok_all_links(text: str) -> list[str]:
     return find_all_by_regex(TIKTOK_LINK_REGEX, text)
@@ -269,6 +279,110 @@ def _extract_video_data(text: str) -> dict[str, Any] | None:
     return None
 
 
+async def _find_links_webapp(
+    client: AsyncClient,
+    url: str,
+    *,
+    images_as_video: bool = True,
+    add_thumbnail: bool = False,
+) -> VideoMedia | RawMedia | list[AnyMedia]:
+    response = await client.get(url, headers={"User-Agent": _MOBILE_USER_AGENT})
+    response.raise_for_status()
+
+    match = verify(
+        UNIVERSAL_DATA_REGEX.search(response.text),
+        msg="universal data script not found (WAF challenge or layout change)",
+    )
+    universal = json.loads(match.group(1))
+    item = verify(
+        universal.get("__DEFAULT_SCOPE__", {})
+        .get("webapp.reflow.video.detail", {})
+        .get("itemInfo", {})
+        .get("itemStruct"),
+        msg="itemStruct not found in universal data",
+    )
+
+    cookie_header = "; ".join(f"{name}={value}" for name, value in client.cookies.items())
+    cdn_headers = {
+        "Referer": "https://www.tiktok.com/",
+        "User-Agent": _MOBILE_USER_AGENT,
+        "Cookie": cookie_header,
+    }
+
+    image_post = item.get("imagePost")
+    if image_post:
+        images = [
+            ImageMedia(url=img["imageURL"]["urlList"][0], headers=cdn_headers)
+            for img in image_post.get("images", [])
+            if img.get("imageURL", {}).get("urlList")
+        ]
+        music_url = item.get("music", {}).get("playUrl")
+        audio = AudioMedia(url=music_url, headers=cdn_headers) if music_url else None
+
+        if images_as_video and images and audio:
+            video_bytes = await images_to_video(images, audio, client=client)
+            return RawMedia(content=video_bytes, content_type="video/mp4")
+
+        result: list[AnyMedia] = [*images]
+        if audio:
+            result.append(audio)
+        return result
+
+    video = item.get("video", {})
+    play_addr = verify(video.get("playAddr"), msg="playAddr missing from itemStruct")
+    cover = (video.get("cover") or video.get("originCover")) if add_thumbnail else None
+
+    return VideoMedia(
+        url=play_addr,
+        thumbnail_url=cover,
+        headers=cdn_headers,
+    )
+
+
+async def _find_links_tikwm(
+    client: AsyncClient,
+    url: str,
+    *,
+    images_as_video: bool = True,
+    add_thumbnail: bool = False,
+) -> VideoMedia | RawMedia | list[AnyMedia]:
+    response = await client.post(
+        "https://www.tikwm.com/api/",
+        data={"url": url, "hd": "1"},
+    )
+    response.raise_for_status()
+
+    payload = response.json()
+    verify(payload.get("code") == 0, msg=f"tikwm error: {payload.get('msg')}")
+    data = verify(payload.get("data"))
+
+    cover = data.get("cover") or data.get("origin_cover") if add_thumbnail else None
+    images = data.get("images") or []
+
+    if not images:
+        video_url = verify(
+            data.get("hdplay") or data.get("play"),
+            msg="tikwm response missing video URL",
+        )
+        return VideoMedia(
+            url=video_url,
+            thumbnail_url=cover,
+        )
+
+    image_medias = [ImageMedia(url=img) for img in images]
+    music_url = (data.get("music_info") or {}).get("play") or data.get("music")
+    audio = AudioMedia(url=music_url) if music_url else None
+
+    if images_as_video and image_medias and audio:
+        video_bytes = await images_to_video(image_medias, audio, client=client)
+        return RawMedia(content=video_bytes, content_type="video/mp4")
+
+    result: list[AnyMedia] = [*image_medias]
+    if audio:
+        result.append(audio)
+    return result
+
+
 async def _find_links_fast(
     client: AsyncClient,
     url: str,
@@ -363,6 +477,26 @@ async def tiktok_resolve_links(
     client: AsyncClient | None = None,
 ) -> VideoMedia | RawMedia | list[AnyMedia]:
     async with httpx_client(client) as client:
+        try:
+            return await _retry_call(_find_links_webapp, retries=2, interval=1)(
+                client,
+                url,
+                images_as_video=images_as_video,
+                add_thumbnail=add_thumbnail,
+            )
+        except Exception:
+            logger.exception("Failed to resolve via webapp, falling back to tikwm")
+
+        try:
+            return await _retry_call(_find_links_tikwm, retries=2, interval=1)(
+                client,
+                url,
+                images_as_video=images_as_video,
+                add_thumbnail=add_thumbnail,
+            )
+        except Exception:
+            logger.exception("Failed to resolve via tikwm, falling back to embed")
+
         return await _find_links_fast(
             client,
             url,
