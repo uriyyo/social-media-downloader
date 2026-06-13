@@ -4,7 +4,7 @@ import logging
 import re
 from functools import wraps
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeAlias, TypeVar, overload
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 from httpx import AsyncClient, Response
@@ -448,6 +448,19 @@ async def _find_links_fast(
     )
 
 
+async def _resolve_comment_video_link(
+    url: str,
+    client: AsyncClient,
+) -> str:
+    response = await client.head(url, follow_redirects=True)
+    final = urlparse(str(response.url))
+
+    if "share_comment_id" not in parse_qs(final.query):
+        return url
+
+    return urlunparse((final.scheme, final.netloc, final.path, "", "", ""))
+
+
 @overload
 async def tiktok_resolve_links(
     url: str,
@@ -478,6 +491,8 @@ async def tiktok_resolve_links(
     client: AsyncClient | None = None,
 ) -> VideoMedia | RawMedia | list[AnyMedia]:
     async with httpx_client(client) as client:
+        url = await _resolve_comment_video_link(url, client)
+
         try:
             return await _retry_call(_find_links_webapp, retries=2, interval=1)(
                 client,
