@@ -4,6 +4,7 @@ import logging
 import re
 from functools import wraps
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeAlias, TypeVar, overload
+from urllib.parse import parse_qs, urlparse
 
 from bs4 import BeautifulSoup
 from httpx import AsyncClient, Response
@@ -517,8 +518,20 @@ async def tiktok_is_video(
         return "/video/" in response.url.path
 
 
+async def tiktok_is_comment(
+    url: str,
+    *,
+    client: AsyncClient | None = None,
+) -> bool:
+    async with httpx_client(client) as client:
+        response = await client.head(url, follow_redirects=True)
+        query = parse_qs(urlparse(str(response.url)).query)
+        return "share_comment_id" in query
+
+
 __all__ = [
     "tiktok_all_links",
+    "tiktok_is_comment",
     "tiktok_is_video",
     "tiktok_resolve_links",
 ]
