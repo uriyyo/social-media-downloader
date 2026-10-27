@@ -6,7 +6,7 @@ from ..common import ImageMedia, ResolverConfig, VideoMedia, find_all_by_regex
 from ..generic import generic_resolve_links
 
 THREADS_LINK_REGEX = re.compile(
-    r"(https://(www\.)?threads\.com)/(?:[@\w.\-]+/)?(?:(?:p|post)/[\w.-]+/?)?",
+    r"(https://(www\.)?threads\.com)/(?:share/[\w-]+/?|(?:[@\w.\-]+/)?(?:(?:p|post)/[\w.-]+/?)?)",
     re.DOTALL | re.IGNORECASE,
 )
 
