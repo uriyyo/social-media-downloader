@@ -3,7 +3,7 @@ import re
 from httpx import AsyncClient
 
 from ..common import ImageMedia, ResolverConfig, VideoMedia, find_all_by_regex
-from ..generic import generic_resolve_links
+from ..generic import ytdlp_resolve_links
 
 TWITTER_LINK_REGEX = re.compile(
     r"https://(x|twitter).com/[\w/]+",
@@ -21,7 +21,7 @@ async def twitter_resolve_links(
     config: ResolverConfig | None = None,
     client: AsyncClient | None = None,
 ) -> list[ImageMedia | VideoMedia]:
-    return await generic_resolve_links(
+    return await ytdlp_resolve_links(
         url,
         config=config,
         client=client,

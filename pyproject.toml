@@ -25,6 +25,7 @@ dependencies = [
     "more-itertools>=10.2.0",
     "pytubefix==9.2.2",
     "pycryptodome>=3.20.0",
+    "yt-dlp>=2026.10.21",
 ]
 
 [dependency-groups]
