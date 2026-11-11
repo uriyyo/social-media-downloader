@@ -6,7 +6,7 @@ from ..common import ImageMedia, ResolverConfig, VideoMedia, find_all_by_regex
 from ..generic import ytdlp_resolve_links
 
 TWITTER_LINK_REGEX = re.compile(
-    r"https://(x|twitter).com/[\w/]+",
+    r"https://(x|twitter)\.com/\w+/status/\d+",
     re.DOTALL | re.IGNORECASE,
 )
 
