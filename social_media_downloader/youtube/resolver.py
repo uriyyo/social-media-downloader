@@ -1,76 +1,100 @@
+import asyncio
 import re
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from httpx import AsyncClient
+from yt_dlp import YoutubeDL
 
-from ..common import VideoMedia, find_all_by_regex, verify
-from ..common.utils import httpx_client
+from ..common import RawMedia, ResolverConfig, find_all_by_regex, verify
 
 YOUTUBE_LINK_REGEX = re.compile(
     r"https://(www\.)?(youtube\.com|youtu\.be)/[^\s\]\)]+",
     re.DOTALL | re.IGNORECASE,
 )
 
-_GETLATE_API_URL = "https://getlate.dev/api/tools/youtube-video-downloader"
-
-_QUALITY_ORDER = ["1080p", "720p", "480p", "360p", "240p", "144p"]
+_MAX_HEIGHT = 1080
 
 
 def youtube_all_links(text: str) -> list[str]:
     return find_all_by_regex(YOUTUBE_LINK_REGEX, text)
 
 
-def _pick_best_format(formats: list[dict[str, Any]], max_mb: float | None = None) -> dict[str, Any] | None:
-    with_audio = [f for f in formats if f.get("hasAudio") and f.get("hasVideo")]
-    video_only = [f for f in formats if f.get("hasVideo") and not f.get("hasAudio")]
+def _size(fmt: dict[str, Any]) -> int | None:
+    return fmt.get("filesize") or fmt.get("filesize_approx")
 
-    for pool in [with_audio, video_only]:
-        pool.sort(
-            key=lambda f: _QUALITY_ORDER.index(f["label"]) if f["label"] in _QUALITY_ORDER else 999,
-        )
-        for fmt in pool:
-            if max_mb and fmt.get("fileSize") and fmt["fileSize"] / (1024 * 1024) > max_mb:
-                continue
-            return fmt
 
-    return None
+def _fits(size: int | None, max_mb: float | None) -> bool:
+    return max_mb is None or (size is not None and size <= max_mb * 1024 * 1024)
+
+
+def _pick_formats(formats: list[dict[str, Any]], max_mb: float | None = None) -> str:
+    # YouTube mostly serves video and audio as separate streams,
+    # so pick best h264 video + m4a audio and let ffmpeg merge them into mp4
+    audios = [f for f in formats if f.get("acodec") not in (None, "none") and f.get("vcodec") == "none"]
+    videos = [
+        f
+        for f in formats
+        if f.get("vcodec") not in (None, "none") and f.get("acodec") == "none" and (f.get("height") or 0) <= _MAX_HEIGHT
+    ]
+
+    audio = max(audios, key=lambda f: (f.get("ext") == "m4a", f.get("abr") or 0), default=None)
+    audio = verify(audio, msg="No audio formats available")
+
+    videos.sort(
+        key=lambda f: (
+            f.get("protocol") == "https",
+            (f.get("vcodec") or "").startswith("avc1"),
+            f.get("height") or 0,
+            f.get("tbr") or 0,
+        ),
+        reverse=True,
+    )
+
+    for video in videos:
+        if _fits((_size(video) or 0) + (_size(audio) or 0) or None, max_mb):
+            return f"{video['format_id']}+{audio['format_id']}"
+
+    msg = "No suitable format found"
+    raise ValueError(msg)
+
+
+def _download(url: str, max_mb: float | None, config: ResolverConfig) -> bytes:
+    with tempfile.TemporaryDirectory() as tmp:
+        options = {
+            "quiet": True,
+            "no_warnings": True,
+            "noprogress": True,
+            "noplaylist": True,
+            "merge_output_format": "mp4",
+            "outtmpl": str(Path(tmp) / "video.%(ext)s"),
+            "socket_timeout": config.timeout,
+        }
+
+        with YoutubeDL(options) as ydl:
+            info = verify(ydl.extract_info(url, download=False), msg=f"Failed to extract info for {url}")
+
+        options["format"] = _pick_formats(info.get("formats") or [], max_mb)
+
+        with YoutubeDL(options) as ydl:
+            ydl.process_ie_result(info, download=True)
+
+        path = verify(next(Path(tmp).glob("video.*"), None), msg=f"Failed to download {url}")
+        return path.read_bytes()
 
 
 async def youtube_resolve_links(
     url: str,
     *,
     max_mb: float | None = None,
+    config: ResolverConfig | None = None,
     client: AsyncClient | None = None,
-) -> VideoMedia:
-    async with httpx_client(client) as client:
-        # Step 1: Get available formats
-        resp = await client.get(
-            _GETLATE_API_URL,
-            params={"action": "formats", "url": url},
-        )
-        resp.raise_for_status()
-        data = resp.json()
+) -> RawMedia:
+    config = config or ResolverConfig.default()
+    content = await asyncio.to_thread(_download, url, max_mb, config)
 
-        if not data.get("success"):
-            msg = "Failed to get video formats"
-            raise ValueError(msg)
-
-        formats = verify(data.get("formats"), msg="No formats available")
-        best = verify(_pick_best_format(formats, max_mb), msg="No suitable format found")
-
-        # Step 2: Build download URL (returns 302 to googlevideo)
-        # Return the proxy URL directly - googlevideo URLs are IP-locked,
-        # so the consumer must follow the redirect chain from their own IP.
-        download_url = str(
-            client.build_request(
-                "GET",
-                _GETLATE_API_URL,
-                params={"action": "download", "url": url, "formatId": best["id"]},
-            ).url,
-        )
-        thumbnail = data.get("cover")
-
-    return VideoMedia(url=download_url, thumbnail_url=thumbnail)
+    return RawMedia(content=content, content_type="video/mp4")
 
 
 __all__ = [
