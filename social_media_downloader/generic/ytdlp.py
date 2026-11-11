@@ -21,6 +21,7 @@ def _extract_info(url: str, config: ResolverConfig) -> dict[str, Any]:
 
     return verify(ydl.sanitize_info(info), msg=f"Failed to extract info for {url}")
 
+
 def _parse_entry(entry: dict[str, Any]) -> ImageMedia | VideoMedia | None:
     if not (url := entry.get("url")):
         return None
